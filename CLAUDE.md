@@ -15,15 +15,25 @@ This project repackages Superhuman (Electron app) for Debian/Ubuntu Linux, apply
 
 ### Attribution
 
-**For PR descriptions**, include full attribution:
+**For PR descriptions and issues**, include full attribution:
 
 ```
 ---
 Generated with [Claude Code](https://claude.ai/code)
-Co-Authored-By: Claude <model-name> <noreply@anthropic.com>
+Co-Authored-By: Claude <model> <noreply@anthropic.com>
 <XX>% AI / <YY>% Human
 Claude: <what AI did>
 Human: <what human did>
+```
+
+Example:
+```
+---
+Generated with [Claude Code](https://claude.ai/code)
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+85% AI / 15% Human
+Claude: Implementation, testing, documentation
+Human: Requirements, review, direction
 ```
 
 **For commits**, include a Co-Authored-By trailer:
