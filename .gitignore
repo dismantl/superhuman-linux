@@ -1,0 +1,24 @@
+# Build artifacts
+build/
+extracted/
+*.AppImage
+*.deb
+
+# Downloaded installers
+Superhuman.exe
+Superhuman*.exe
+
+# Desktop files (generated during build)
+superhuman-appimage.desktop
+
+# Editor files
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Claude Code local config
+.claude/

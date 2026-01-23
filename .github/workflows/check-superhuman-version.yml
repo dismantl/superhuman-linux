@@ -1,0 +1,230 @@
+name: Check Superhuman Version
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install requests pyyaml
+
+      - name: Resolve download URLs
+        id: resolve_urls
+        run: |
+          echo "Resolving Superhuman download URLs..."
+
+          # Run the resolver script - stdout has KEY=VALUE pairs, stderr has status messages
+          python scripts/resolve-download-url.py all --format both > resolved_urls.txt || true
+
+          echo "Resolved URLs:"
+          cat resolved_urls.txt
+
+          # Parse the output
+          AMD64_URL=$(grep "^AMD64_URL=" resolved_urls.txt | cut -d= -f2-)
+          ARM64_URL=$(grep "^ARM64_URL=" resolved_urls.txt | cut -d= -f2-)
+          AMD64_VERSION=$(grep "^AMD64_VERSION=" resolved_urls.txt | cut -d= -f2-)
+          ARM64_VERSION=$(grep "^ARM64_VERSION=" resolved_urls.txt | cut -d= -f2-)
+
+          echo "AMD64 URL: $AMD64_URL"
+          echo "ARM64 URL: $ARM64_URL"
+          echo "AMD64 Version: $AMD64_VERSION"
+          echo "ARM64 Version: $ARM64_VERSION"
+
+          # Use AMD64 version as the canonical version (they should match)
+          SUPERHUMAN_VERSION="${AMD64_VERSION:-$ARM64_VERSION}"
+
+          if [ -z "$AMD64_URL" ]; then
+            echo "::error::Failed to resolve AMD64 download URL"
+            exit 1
+          fi
+
+          echo "amd64_url=$AMD64_URL" >> $GITHUB_OUTPUT
+          echo "arm64_url=$ARM64_URL" >> $GITHUB_OUTPUT
+          echo "superhuman_version=$SUPERHUMAN_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Get current URLs from build.sh
+        id: current_urls
+        run: |
+          # Extract current URLs from build.sh
+          # The build.sh uses superhuman_download_url variable
+          CURRENT_AMD64_URL=$(grep -E "amd64\)" -A1 build.sh | grep -oP "superhuman_download_url=\"[^\"]*\K[^\"]+")
+          CURRENT_ARM64_URL=$(grep -E "arm64\)" -A1 build.sh | grep -oP "superhuman_download_url=\"[^\"]*\K[^\"]+")
+
+          # If that didn't work, try alternate patterns
+          if [ -z "$CURRENT_AMD64_URL" ]; then
+            CURRENT_AMD64_URL=$(grep -oP "Superhuman%20Setup%20[0-9]+\.[0-9]+\.[0-9]+-latest\.exe" build.sh | head -1)
+            if [ -n "$CURRENT_AMD64_URL" ]; then
+              CURRENT_AMD64_URL="https://storage.googleapis.com/download.superhuman.com/native-update/$CURRENT_AMD64_URL"
+            fi
+          fi
+
+          echo "Current AMD64 URL: $CURRENT_AMD64_URL"
+          echo "Current ARM64 URL: $CURRENT_ARM64_URL"
+
+          echo "current_amd64_url=$CURRENT_AMD64_URL" >> $GITHUB_OUTPUT
+          echo "current_arm64_url=$CURRENT_ARM64_URL" >> $GITHUB_OUTPUT
+
+      - name: Check if update needed
+        id: check_update
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NEW_AMD64_URL="${{ steps.resolve_urls.outputs.amd64_url }}"
+          NEW_ARM64_URL="${{ steps.resolve_urls.outputs.arm64_url }}"
+          CURRENT_AMD64_URL="${{ steps.current_urls.outputs.current_amd64_url }}"
+          CURRENT_ARM64_URL="${{ steps.current_urls.outputs.current_arm64_url }}"
+          SUPERHUMAN_VERSION="${{ steps.resolve_urls.outputs.superhuman_version }}"
+          STORED_SUPERHUMAN_VERSION="${{ vars.SUPERHUMAN_VERSION }}"
+          REPO_VERSION="${{ vars.REPO_VERSION }}"
+
+          echo "Current stored Superhuman version: $STORED_SUPERHUMAN_VERSION"
+          echo "Detected Superhuman version: $SUPERHUMAN_VERSION"
+          echo "Repository version: $REPO_VERSION"
+
+          UPDATE_NEEDED=false
+
+          # Check if AMD64 URL changed
+          if [ "$NEW_AMD64_URL" != "$CURRENT_AMD64_URL" ]; then
+            echo "AMD64 URL has changed"
+            UPDATE_NEEDED=true
+          fi
+
+          # Check if ARM64 URL changed (only if we got a new one)
+          if [ -n "$NEW_ARM64_URL" ] && [ "$NEW_ARM64_URL" != "$CURRENT_ARM64_URL" ]; then
+            echo "ARM64 URL has changed"
+            UPDATE_NEEDED=true
+          fi
+
+          # Check if version changed
+          if [ -n "$SUPERHUMAN_VERSION" ] && [ "$SUPERHUMAN_VERSION" != "$STORED_SUPERHUMAN_VERSION" ]; then
+            echo "Superhuman version has changed"
+            UPDATE_NEEDED=true
+          fi
+
+          if [ "$UPDATE_NEEDED" = "true" ]; then
+            echo "Update needed!"
+            echo "update_needed=true" >> $GITHUB_OUTPUT
+
+            # Construct the new tag
+            NEW_TAG="v${REPO_VERSION}+superhuman${SUPERHUMAN_VERSION}"
+            echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+            echo "New tag will be: $NEW_TAG"
+          else
+            echo "No updates needed"
+            echo "update_needed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update build.sh with new URLs
+        if: steps.check_update.outputs.update_needed == 'true'
+        run: |
+          NEW_AMD64_URL="${{ steps.resolve_urls.outputs.amd64_url }}"
+          SUPERHUMAN_VERSION="${{ steps.resolve_urls.outputs.superhuman_version }}"
+
+          echo "Updating build.sh with new version..."
+
+          # Update the version in the URL pattern
+          # The URL pattern is: Superhuman%20Setup%20X.X.X-latest.exe
+          sed -i "s/Superhuman%20Setup%20[0-9]\+\.[0-9]\+\.[0-9]\+-latest/Superhuman%20Setup%20${SUPERHUMAN_VERSION}-latest/g" build.sh
+
+          echo "Updated build.sh:"
+          grep "superhuman_download_url" build.sh || grep "Superhuman%20Setup" build.sh
+
+      - name: Commit and push changes
+        if: steps.check_update.outputs.update_needed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          SUPERHUMAN_VERSION="${{ steps.resolve_urls.outputs.superhuman_version }}"
+          NEW_TAG="${{ steps.check_update.outputs.new_tag }}"
+
+          # Check if we have a PAT
+          if [ -z "$GH_TOKEN" ]; then
+            echo "Error: GH_PAT secret is not configured"
+            exit 1
+          fi
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Check if there are changes to commit
+          if git diff --quiet build.sh; then
+            echo "No changes to build.sh"
+          else
+            git add build.sh
+            git commit -m "$(cat <<COMMIT_MSG
+          Update Superhuman download URLs to version $SUPERHUMAN_VERSION
+
+          Updated download URLs resolved from official update channel.
+
+          🤖 Generated with [Claude Code](https://claude.com/claude-code)
+          COMMIT_MSG
+          )"
+            git push
+            echo "Changes committed and pushed"
+          fi
+
+          # Update the version variable
+          gh variable set SUPERHUMAN_VERSION --body "$SUPERHUMAN_VERSION"
+
+          echo "Creating and pushing new tag: $NEW_TAG"
+
+          # Create annotated tag
+          git tag -a "$NEW_TAG" -m "Update to Superhuman $SUPERHUMAN_VERSION"
+
+          # Push the tag
+          git push origin "$NEW_TAG"
+
+          echo "Successfully created tag $NEW_TAG"
+
+      - name: Create release
+        if: steps.check_update.outputs.update_needed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NEW_TAG="${{ steps.check_update.outputs.new_tag }}"
+          SUPERHUMAN_VERSION="${{ steps.resolve_urls.outputs.superhuman_version }}"
+
+          # Create release notes using heredoc
+          RELEASE_NOTES=$(cat <<EOF
+          ## Superhuman Update
+
+          This release updates the packaged Superhuman version to **$SUPERHUMAN_VERSION**.
+
+          ### What's Changed
+          - Updated Superhuman to version $SUPERHUMAN_VERSION
+
+          ### Installation
+          Download the appropriate package for your architecture from the assets below.
+
+          ---
+          *This release was automatically generated when a new Superhuman version was detected.*
+          EOF
+          )
+
+          # Create the release
+          gh release create "$NEW_TAG" \
+            --title "Release $NEW_TAG" \
+            --notes "$RELEASE_NOTES" \
+            --latest
+
+          echo "Release created for $NEW_TAG"
