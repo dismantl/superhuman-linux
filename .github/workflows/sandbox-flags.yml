@@ -1,0 +1,19 @@
+name: Sandbox Flag Tests
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test-sandbox-flags:
+    name: Test Sandbox Flags
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: bash tests/sandbox-flags.sh

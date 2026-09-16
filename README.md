@@ -150,14 +150,11 @@ If clicking login redirects don't open in Superhuman:
 
 2. For AppImages, ensure you've integrated with the desktop using Gear Lever or manually installed the `.desktop` file.
 
-### AppImage Sandbox Warning
+### Electron Sandbox
 
-AppImages run with `--no-sandbox` due to Electron's chrome-sandbox requiring root privileges for unprivileged namespace creation. This is a known limitation of AppImage format with Electron applications.
+The AppImage launcher checks whether the host allows unprivileged user namespaces and whether AppArmor restricts them for individual programs. When these checks pass, it launches Electron without `--no-sandbox`. Otherwise, it adds that flag automatically so the app can still start. The fallback disables Chromium's process sandbox. Terminal launches print a warning; all launches record it in `~/.cache/superhuman/launcher.log` (or under `$XDG_CACHE_HOME`).
 
-For enhanced security, consider:
-- Using the .deb package instead
-- Running the AppImage within a separate sandbox (e.g., bubblewrap)
-- Using Gear Lever's integrated AppImage management
+You can check basic namespace support with `unshare --user --map-root-user true`. Even if that works, the AppImage falls back when `/proc/sys/kernel/apparmor_restrict_unprivileged_userns` is `1`: AppArmor may allow `unshare` while denying the AppImage's Electron binary. This conservative check also falls back on hosts that explicitly allow Electron. The `.deb` package can use its installed setuid sandbox helper instead. Gear Lever helps with AppImage desktop integration but does not enable Electron's sandbox.
 
 ## Technical Details
 
