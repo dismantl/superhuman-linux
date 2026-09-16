@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The dynamic source below hides build.sh's use of these globals and mock commands from ShellCheck.
-# shellcheck disable=SC1090,SC2034,SC2154,SC2329
+# shellcheck disable=SC1090,SC2034,SC2154,SC2317,SC2329
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
