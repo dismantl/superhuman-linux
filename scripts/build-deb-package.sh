@@ -193,7 +193,7 @@ set -e
 
 # Update desktop database for MIME types
 echo "Updating desktop database..."
-update-desktop-database /usr/share/applications &> /dev/null || true
+update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
 
 # Set correct permissions for chrome-sandbox if electron is installed globally
 # or locally packaged
@@ -231,7 +231,7 @@ chmod 755 "$package_root/DEBIAN" || exit 1
 echo 'Setting script permissions...'
 chmod 755 "$package_root/DEBIAN/postinst" || exit 1
 
-if ! dpkg-deb --build "$package_root" "$deb_file"; then
+if ! dpkg-deb --root-owner-group --build "$package_root" "$deb_file"; then
 	echo 'Failed to build .deb package' >&2
 	exit 1
 fi
