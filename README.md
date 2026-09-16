@@ -4,7 +4,7 @@ An unofficial Linux port of [Superhuman](https://superhuman.com/), the fastest e
 
 This project repackages the official Windows version of Superhuman for Debian-based Linux distributions, producing either `.deb` packages or AppImages.
 
-**Note:** This is an unofficial build script. For official support, please visit [Superhuman's website](https://superhuman.com/). For issues with the build script or Linux implementation, please [open an issue](https://github.com/aaddrick/superhuman-linux/issues) in this repository.
+**Note:** This is an unofficial build script. For official support, please visit [Superhuman's website](https://superhuman.com/). For issues with the build script or Linux implementation, please [open an issue](https://github.com/dismantl/superhuman-linux/issues) in this repository.
 
 ## Features
 
@@ -19,7 +19,7 @@ This project repackages the official Windows version of Superhuman for Debian-ba
 
 ### Using Pre-built Releases
 
-Download the latest `.deb` or `.AppImage` from the [Releases page](https://github.com/aaddrick/superhuman-linux/releases).
+Download the latest amd64 `.deb` or `.AppImage` from the [Releases page](https://github.com/dismantl/superhuman-linux/releases).
 
 ### Building from Source
 
@@ -27,13 +27,14 @@ Download the latest `.deb` or `.AppImage` from the [Releases page](https://githu
 
 - Debian-based Linux distribution (Debian, Ubuntu, Linux Mint, MX Linux, etc.)
 - Git
+- Node.js 22.12 or newer (the script downloads a local Node.js runtime if needed)
 - Basic build tools (automatically installed by the script)
 
 #### Build Instructions
 
 ```bash
 # Clone the repository
-git clone https://github.com/aaddrick/superhuman-linux.git
+git clone https://github.com/dismantl/superhuman-linux.git
 cd superhuman-linux
 
 # Build a .deb package (default)
@@ -171,16 +172,13 @@ Superhuman is an Electron application distributed for Windows and macOS. This pr
 
 ### Automated Version Detection
 
-A GitHub Actions workflow runs daily to check for new Superhuman releases:
+A GitHub Actions workflow checks daily for new amd64 Superhuman releases:
 
 1. Fetches version information from Superhuman's public update channel
 2. Compares with the version in `build.sh`
-3. If a new version is detected:
-   - Updates `build.sh` with the new version
-   - Creates a new release tag
-   - Triggers automated builds for both architectures
+3. If a new version is detected, updates the version in `build.sh` and dispatches CI to build the amd64 `.deb` and AppImage. CI creates the tag and publishes the release only after both packages are built.
 
-This ensures the repository stays up-to-date with official releases automatically.
+The workflow can also be run manually from GitHub Actions. Fork owners must enable the scheduled workflow in their fork before daily checks will run. ARM64 packages are not published automatically because Superhuman's current update channel does not provide a working Windows ARM64 installer URL.
 
 ### Manual Updates
 
@@ -191,7 +189,7 @@ If you need to build with a specific version before the automation catches it:
    ./build.sh --exe /path/to/Superhuman.exe
    ```
 
-2. **Update the URL**: Modify the `superhuman_download_url` variables in `build.sh`.
+2. **Update the pinned version**: Modify `SUPERHUMAN_VERSION` in `build.sh`.
 
 ## License
 

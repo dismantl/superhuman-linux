@@ -30,6 +30,7 @@ final_output_path=''
 readonly PACKAGE_NAME='superhuman'
 readonly MAINTAINER='Superhuman Linux Maintainers'
 readonly DESCRIPTION='Superhuman - The fastest email experience ever made'
+readonly SUPERHUMAN_VERSION='1041.0.59'
 
 #===============================================================================
 # Utility Functions
@@ -69,20 +70,19 @@ detect_architecture() {
 	echo "Detected host architecture: $host_arch"
 	cat /etc/os-release && uname -m && dpkg --print-architecture
 
-	# Superhuman download URL - fetched from their update channel
-	# The version check workflow updates these URLs when new versions are released
+	# The scheduled workflow updates this version from Superhuman's update channel.
 	local base_url='https://storage.googleapis.com/download.superhuman.com/native-update'
 
 	case "$host_arch" in
 		amd64)
-			superhuman_download_url="${base_url}/Superhuman%20Setup%201038.0.17-latest.exe"
+			superhuman_download_url="${base_url}/Superhuman%20Setup%20${SUPERHUMAN_VERSION}-latest.exe"
 			architecture='amd64'
 			superhuman_exe_filename='Superhuman-Setup-x64.exe'
 			echo 'Configured for amd64 build.'
 			;;
 		arm64)
 			# Superhuman provides arm64 builds as well
-			superhuman_download_url="${base_url}/Superhuman%20Setup%201038.0.17-latest-arm64.exe"
+			superhuman_download_url="${base_url}/Superhuman%20Setup%20${SUPERHUMAN_VERSION}-latest-arm64.exe"
 			architecture='arm64'
 			superhuman_exe_filename='Superhuman-Setup-arm64.exe'
 			echo 'Configured for arm64 build.'
@@ -120,7 +120,7 @@ check_system_requirements() {
 
 	# Check for NVM and source it if found
 	if [[ -d $original_home/.nvm ]]; then
-		echo "Found NVM installation for user $original_user, checking for Node.js 20+..."
+		echo "Found NVM installation for user $original_user, checking for Node.js 22.12+..."
 		export NVM_DIR="$original_home/.nvm"
 		if [[ -s $NVM_DIR/nvm.sh ]]; then
 			# shellcheck disable=SC1091
@@ -264,16 +264,18 @@ setup_nodejs() {
 
 	local node_version_ok=false
 	if command -v node &> /dev/null; then
-		local node_version node_major
+		local node_version node_major node_minor
 		node_version=$(node --version | cut -d'v' -f2)
 		node_major="${node_version%%.*}"
+		node_minor="${node_version#*.}"
+		node_minor="${node_minor%%.*}"
 		echo "System Node.js version: v$node_version"
 
-		if (( node_major >= 20 )); then
+		if (( node_major > 22 || (node_major == 22 && node_minor >= 12) )); then
 			echo "System Node.js version is adequate (v$node_version)"
 			node_version_ok=true
 		else
-			echo "System Node.js version is too old (v$node_version). Need v20+"
+			echo "System Node.js version is too old (v$node_version). Need v22.12+"
 		fi
 	else
 		echo 'Node.js not found in system'
@@ -285,7 +287,7 @@ setup_nodejs() {
 	fi
 
 	# Node.js version inadequate - install locally
-	echo 'Installing Node.js v20 locally in build directory...'
+	echo 'Installing a current Node.js LTS version locally in build directory...'
 
 	local node_arch
 	case "$architecture" in
@@ -297,7 +299,7 @@ setup_nodejs() {
 			;;
 	esac
 
-	local node_version_to_install='20.18.1'
+	local node_version_to_install='24.21.0'
 	local node_tarball="node-v${node_version_to_install}-linux-${node_arch}.tar.xz"
 	local node_url="https://nodejs.org/dist/v${node_version_to_install}/${node_tarball}"
 	local node_install_dir="$work_dir/node"

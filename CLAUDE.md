@@ -198,7 +198,7 @@ npx asar extract /tmp/.mount_superh*/usr/lib/node_modules/electron/dist/resource
   pkill -9 -f "mount_superh"
   ```
 - **SingletonLock** - If app won't start, check for stale lock: `~/.config/Superhuman/SingletonLock`
-- **Node version** - Build requires Node.js 20+; the script downloads its own if needed
+- **Node version** - Build requires Node.js 22.12+; the script downloads its own if needed
 - **Version updates** - A GitHub Action automatically checks Superhuman's update channel and updates `build.sh` when new versions are detected
 
 ## Useful Commands
