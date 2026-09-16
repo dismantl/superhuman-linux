@@ -645,24 +645,8 @@ process_icons() {
 
 	if [[ -f $app_png ]]; then
 		echo "Found app icon in assets: $app_png"
-		# Generate various sizes from the source PNG using ImageMagick
-		local sizes=(16 24 32 48 64 128 256)
-		for size in "${sizes[@]}"; do
-			local output_file="$work_dir/superhuman_${size}x${size}.png"
-			if convert "$app_png" -resize "${size}x${size}" "$output_file" 2>/dev/null; then
-				echo "Generated ${size}x${size} icon"
-			fi
-		done
-		# Also create the specific naming pattern expected by packaging scripts
-		# Pattern: superhuman_N_WxHx32.png where N is an index
-		convert "$app_png" -resize "256x256" "$work_dir/superhuman_6_256x256x32.png" 2>/dev/null || true
-		convert "$app_png" -resize "64x64" "$work_dir/superhuman_7_64x64x32.png" 2>/dev/null || true
-		convert "$app_png" -resize "48x48" "$work_dir/superhuman_8_48x48x32.png" 2>/dev/null || true
-		convert "$app_png" -resize "32x32" "$work_dir/superhuman_10_32x32x32.png" 2>/dev/null || true
-		convert "$app_png" -resize "24x24" "$work_dir/superhuman_11_24x24x32.png" 2>/dev/null || true
-		convert "$app_png" -resize "16x16" "$work_dir/superhuman_13_16x16x32.png" 2>/dev/null || true
+		cp "$app_png" "$work_dir/superhuman-source.png" || exit 1
 		icons_found=true
-		echo "Icons generated from app.png"
 	elif [[ -f $app_ico ]]; then
 		echo "Found app icon in assets: $app_ico"
 		# Extract icons from .ico file
@@ -699,9 +683,32 @@ process_icons() {
 		fi
 	fi
 
-	if [[ $icons_found != true ]]; then
-		echo 'Warning: No icons found. AppImage may be missing an icon.'
+	# icotool indices vary between installer versions; choose the largest image.
+	local icon_source='' largest_area=0 icon dimensions width height area
+	if [[ -f $work_dir/superhuman-source.png ]]; then
+		icon_source="$work_dir/superhuman-source.png"
+	else
+		while IFS= read -r -d '' icon; do
+			dimensions=$(identify -format '%w %h' "$icon" 2>/dev/null) || continue
+			read -r width height <<< "$dimensions"
+			area=$((width * height))
+			if (( area > largest_area )); then
+				largest_area=$area
+				icon_source=$icon
+			fi
+		done < <(find "$work_dir" -maxdepth 1 -type f -name 'superhuman_*.png' -print0)
 	fi
+
+	if [[ -z $icon_source ]]; then
+		echo 'Could not extract a usable application icon' >&2
+		exit 1
+	fi
+
+	local sizes=(16 24 32 48 64 128 256)
+	for size in "${sizes[@]}"; do
+		convert "$icon_source" -resize "${size}x${size}" "$work_dir/superhuman_${size}x${size}.png" || exit 1
+	done
+	echo "Generated icon sizes from $icon_source"
 
 	cd "$project_root" || exit 1
 

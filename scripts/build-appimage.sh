@@ -137,7 +137,7 @@ echo 'Bundled desktop entry created and copied to usr/share/applications/'
 # --- Copy Icons ---
 echo 'Copying icons...'
 # Use the 256x256 icon as the main AppImage icon
-icon_source_path="$work_dir/superhuman_6_256x256x32.png"
+icon_source_path="$work_dir/superhuman_256x256.png"
 if [[ -f $icon_source_path ]]; then
 	# Standard location within AppDir
 	cp "$icon_source_path" "$appdir_path/usr/share/icons/hicolor/256x256/apps/${component_id}.png" || exit 1
