@@ -38,18 +38,31 @@ check_display() {
 	[[ -n $DISPLAY || -n $WAYLAND_DISPLAY ]]
 }
 
+# An AppArmor user namespace grant can apply to unshare but not the AppImage's
+# Electron binary. Treat a host-wide restriction as incompatible with AppImage.
+appimage_apparmor_userns_restricted() {
+	local setting=/proc/sys/kernel/apparmor_restrict_unprivileged_userns
+	[[ -r $setting && $(< "$setting") == 1 ]]
+}
+
 # Build Electron arguments array based on display backend
 # Requires: is_wayland, use_x11_on_wayland to be set
 #           (call detect_display_backend first)
 # Sets: electron_args array
-# Arguments: $1 = "appimage" or "deb" (affects --no-sandbox behavior)
+# Arguments: $1 = "appimage" or "deb"
 build_electron_args() {
 	local package_type="${1:-deb}"
 
 	electron_args=()
 
-	# AppImage always needs --no-sandbox due to FUSE constraints
-	[[ $package_type == 'appimage' ]] && electron_args+=('--no-sandbox')
+	# FUSE mounts cannot use Electron's bundled setuid helper. A successful
+	# unshare probe is insufficient when AppArmor restricts the Electron path.
+	if [[ $package_type == 'appimage' ]] && \
+		{ appimage_apparmor_userns_restricted || ! command -v unshare > /dev/null 2>&1 || ! unshare --user --map-root-user true > /dev/null 2>&1; }; then
+		log_message 'AppImage user namespace sandbox unavailable; Chromium sandbox disabled'
+		echo 'Warning: AppImage user namespace sandbox unavailable; launching without the Chromium sandbox.' >&2
+		electron_args+=('--no-sandbox')
+	fi
 
 	# Disable CustomTitlebar for better Linux integration
 	electron_args+=('--disable-features=CustomTitlebar')
@@ -59,9 +72,6 @@ build_electron_args() {
 		log_message 'X11 session detected'
 		return
 	fi
-
-	# Wayland: deb package needs --no-sandbox in both modes
-	[[ $package_type == 'deb' ]] && electron_args+=('--no-sandbox')
 
 	if [[ $use_x11_on_wayland == true ]]; then
 		# Default: Use X11 via XWayland for compatibility

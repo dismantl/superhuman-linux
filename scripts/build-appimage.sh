@@ -95,7 +95,7 @@ log_message "APPDIR: $appdir"
 electron_exec="$appdir/usr/lib/node_modules/electron/dist/electron"
 app_path="$appdir/usr/lib/node_modules/electron/dist/resources/app.asar"
 
-# Build electron args (appimage mode adds --no-sandbox)
+# Build electron args (AppImage mode checks user namespace policy)
 build_electron_args 'appimage'
 
 # Add app path LAST - Chromium flags must come before this
