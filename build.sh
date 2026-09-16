@@ -31,6 +31,8 @@ readonly PACKAGE_NAME='superhuman'
 readonly MAINTAINER='Superhuman Linux Maintainers'
 readonly DESCRIPTION='Superhuman - The fastest email experience ever made'
 readonly SUPERHUMAN_VERSION='1041.0.59'
+readonly ELECTRON_VERSION='44.4.1'
+readonly ASAR_VERSION='4.3.0'
 
 #===============================================================================
 # Utility Functions
@@ -355,8 +357,14 @@ setup_electron_asar() {
 
 	if [[ $install_needed == true ]]; then
 		echo "Installing Electron and Asar locally into $work_dir..."
-		if ! npm install --no-save electron @electron/asar; then
+		if ! npm install --no-save "electron@${ELECTRON_VERSION}" "@electron/asar@${ASAR_VERSION}"; then
 			echo 'Failed to install Electron and/or Asar locally.' >&2
+			cd "$project_root" || exit 1
+			exit 1
+		fi
+		# Electron's npm package ships the installer but does not run it during npm install.
+		if ! node "$work_dir/node_modules/electron/install.js"; then
+			echo 'Failed to download the Electron runtime.' >&2
 			cd "$project_root" || exit 1
 			exit 1
 		fi
@@ -437,6 +445,7 @@ download_superhuman_installer() {
 
 	# Superhuman uses NSIS with embedded 7z archives in $PLUGINSDIR
 	local app_7z_path=''
+	# shellcheck disable=SC2016 # $PLUGINSDIR is a literal directory name in the NSIS archive.
 	case "$architecture" in
 		amd64) app_7z_path='$PLUGINSDIR/app-64.7z' ;;
 		arm64) app_7z_path='$PLUGINSDIR/app-arm64.7z' ;;
