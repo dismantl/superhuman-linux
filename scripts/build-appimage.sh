@@ -236,7 +236,7 @@ done
 # Download if not found
 if [[ -z $appimagetool_path ]]; then
 	echo 'Downloading appimagetool...'
-	appimagetool_url="https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${appimage_arch}.AppImage"
+	appimagetool_url="https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${appimage_arch}.AppImage"
 	appimagetool_path="$work_dir/appimagetool-${appimage_arch}.AppImage"
 
 	if wget -q -O "$appimagetool_path" "$appimagetool_url"; then
