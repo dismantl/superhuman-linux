@@ -98,7 +98,6 @@ setup_electron_env
 # Log startup info
 log_message '--- Superhuman Launcher Start ---'
 log_message "Timestamp: \$(date)"
-log_message "Arguments: \$@"
 
 # Check for display
 if ! check_display; then
@@ -151,7 +150,7 @@ log_message "Changing directory to \$app_dir"
 cd "\$app_dir" || { log_message "Failed to cd to \$app_dir"; exit 1; }
 
 # Execute Electron
-log_message "Executing: \$electron_exec \${electron_args[*]} \$*"
+log_message "Executing: \$electron_exec"
 "\$electron_exec" "\${electron_args[@]}" "\$@" >> "\$log_file" 2>&1
 exit_code=\$?
 log_message "Electron exited with code: \$exit_code"
