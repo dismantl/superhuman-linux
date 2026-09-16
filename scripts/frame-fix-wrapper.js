@@ -1,13 +1,13 @@
 // Superhuman Linux Frame Fix Wrapper
 // Intercepts Electron's BrowserWindow to force native window frames on Linux
-// Also spoofs User-Agent to appear as Windows for OAuth compatibility
+// OAuth popups use a browser User-Agent; the app itself keeps Electron's native identity
 const Module = require('module');
 const originalRequire = Module.prototype.require;
 
 console.log('[Superhuman Frame Fix] Wrapper loaded');
 
-// Windows Chrome User-Agent for OAuth compatibility
-// Superhuman's website checks User-Agent and shows "get extension" on Linux
+// OAuth providers expect a browser User-Agent, while Superhuman's own pages
+// require the native Superhuman and Electron tokens in Electron's default one.
 const WINDOWS_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 Module.prototype.require = function(id) {
@@ -18,28 +18,7 @@ Module.prototype.require = function(id) {
     const OriginalBrowserWindow = module.BrowserWindow;
     const OriginalMenu = module.Menu;
 
-    // Spoof User-Agent on the default session to appear as Windows Chrome
-    // This is needed because Superhuman's OAuth flow checks User-Agent
-    if (module.app && module.session && process.platform === 'linux') {
-      const setupUserAgent = () => {
-        try {
-          const defaultSession = module.session.defaultSession;
-          if (defaultSession) {
-            defaultSession.setUserAgent(WINDOWS_USER_AGENT);
-            console.log('[Superhuman Frame Fix] User-Agent spoofed to Windows Chrome');
-          }
-        } catch (e) {
-          console.log('[Superhuman Frame Fix] Failed to set User-Agent:', e.message);
-        }
-      };
-
-      // Set User-Agent when app is ready (session may not be available before)
-      if (module.app.isReady()) {
-        setupUserAgent();
-      } else {
-        module.app.once('ready', setupUserAgent);
-      }
-
+    if (module.app && process.platform === 'linux') {
       // OAuth popup windows created via window.open() don't go through our BrowserWindow
       // constructor - they're created internally by Chromium when setWindowOpenHandler
       // returns { action: "allow" }. We need to intercept these and set their User-Agent.
