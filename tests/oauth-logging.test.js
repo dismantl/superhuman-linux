@@ -3,7 +3,7 @@ const { EventEmitter } = require('node:events');
 const Module = require('node:module');
 const test = require('node:test');
 
-test('OAuth URLs are forwarded without appearing in wrapper logs', async () => {
+test('Native app identity is preserved while OAuth URLs stay out of wrapper logs', async () => {
   const originalRequire = Module.prototype.require;
   const originalLog = console.log;
   const logs = [];
@@ -14,7 +14,7 @@ test('OAuth URLs are forwarded without appearing in wrapper logs', async () => {
   class FakeBrowserWindow {
     constructor() {
       this.webContents = new EventEmitter();
-      this.webContents.setUserAgent = () => {};
+      this.webContents.setUserAgent = userAgent => { this.webContents.userAgent = userAgent; };
       windows.push(this);
     }
 
@@ -26,12 +26,18 @@ test('OAuth URLs are forwarded without appearing in wrapper logs', async () => {
   const app = new EventEmitter();
   app.isReady = () => true;
   app.on('open-url', (_event, url) => callbackUrls.push(url));
+  const nativeUserAgent = 'Mozilla/5.0 Chrome/1.0 Electron/2.0 Superhuman/3.0';
+  const defaultSession = {
+    userAgent: nativeUserAgent,
+    getUserAgent() { return this.userAgent; },
+    setUserAgent(userAgent) { this.userAgent = userAgent; },
+  };
 
   const electron = {
     app,
     BrowserWindow: FakeBrowserWindow,
     Menu: { setApplicationMenu() {} },
-    session: { defaultSession: { setUserAgent() {} } },
+    session: { defaultSession },
     shell: {
       async openExternal(url) {
         externalUrls.push(url);
@@ -51,16 +57,22 @@ test('OAuth URLs are forwarded without appearing in wrapper logs', async () => {
     delete require.cache[wrapperPath];
     require(wrapperPath);
     require('electron');
+    assert.equal(defaultSession.getUserAgent(), nativeUserAgent);
 
     const popupUrl = 'https://accounts.google.com/o/oauth2/auth?redirect_uri=superhuman%3A%2F%2Fsecret-popup';
     const source = new EventEmitter();
+    const popupWindow = new FakeBrowserWindow();
     app.emit('web-contents-created', {}, source);
-    source.emit('did-create-window', new FakeBrowserWindow(), { url: popupUrl });
+    source.emit('did-create-window', popupWindow, { url: popupUrl });
+    assert.match(popupWindow.webContents.userAgent, /Windows NT/);
+    assert.doesNotMatch(popupWindow.webContents.userAgent, /Electron|Superhuman/);
 
     const authUrl = 'https://accounts.google.com/o/oauth2/auth?state=secret-state';
     await electron.shell.openExternal(authUrl);
     const oauthWindow = windows.at(-1);
     assert.equal(oauthWindow.loadedUrl, authUrl);
+    assert.match(oauthWindow.webContents.userAgent, /Windows NT/);
+    assert.doesNotMatch(oauthWindow.webContents.userAgent, /Electron|Superhuman/);
 
     const callbackUrl = 'superhuman://auth/callback?code=secret-code#access_token=secret-fragment';
     for (const eventName of ['will-navigate', 'will-redirect']) {
