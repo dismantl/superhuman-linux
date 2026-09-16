@@ -49,9 +49,8 @@ Module.prototype.require = function(id) {
 
         module.app.on('web-contents-created', (event, webContents) => {
           // Listen for popup windows created from this webContents
-          webContents.on('did-create-window', (newWindow, details) => {
-            const url = details.url || '';
-            console.log('[Superhuman Frame Fix] Popup window created for:', url);
+          webContents.on('did-create-window', (newWindow) => {
+            console.log('[Superhuman Frame Fix] Popup window created');
 
             // Set Windows User-Agent on the popup window's webContents
             // This ensures OAuth pages see a Windows browser
@@ -150,7 +149,7 @@ Module.prototype.require = function(id) {
         const isOAuthUrl = OAUTH_PATTERNS.some(pattern => url.includes(pattern));
 
         if (isOAuthUrl) {
-          console.log('[Superhuman Frame Fix] Intercepting OAuth URL:', url);
+          console.log('[Superhuman Frame Fix] Intercepting OAuth URL');
 
           // Create a new window with spoofed User-Agent for OAuth
           const oauthWindow = new module.BrowserWindow({
@@ -169,7 +168,7 @@ Module.prototype.require = function(id) {
           // Handle the OAuth callback - when it redirects to superhuman://
           oauthWindow.webContents.on('will-navigate', (event, navUrl) => {
             if (navUrl.startsWith('superhuman:') || navUrl.startsWith('superhuman-app:')) {
-              console.log('[Superhuman Frame Fix] OAuth callback detected:', navUrl);
+              console.log('[Superhuman Frame Fix] OAuth callback detected');
               event.preventDefault();
               oauthWindow.close();
               // Emit the URL to the app's protocol handler
@@ -180,7 +179,7 @@ Module.prototype.require = function(id) {
           // Also handle redirects
           oauthWindow.webContents.on('will-redirect', (event, navUrl) => {
             if (navUrl.startsWith('superhuman:') || navUrl.startsWith('superhuman-app:')) {
-              console.log('[Superhuman Frame Fix] OAuth redirect detected:', navUrl);
+              console.log('[Superhuman Frame Fix] OAuth redirect detected');
               event.preventDefault();
               oauthWindow.close();
               module.app.emit('open-url', event, navUrl);

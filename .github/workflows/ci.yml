@@ -30,6 +30,17 @@ jobs:
     name: Test Flags Parsing
     uses: ./.github/workflows/test-flags.yml
 
+  test-oauth-logging:
+    name: Test OAuth Logging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: "24.21.0"
+      - run: node --test tests/oauth-logging.test.js
+      - run: bash tests/oauth-launcher-logging.sh
+
   build-amd64:
     name: Build Packages (amd64 - ${{ matrix.flags || 'defaults' }})
     needs: test-flags
@@ -53,7 +64,7 @@ jobs:
   release:
     name: Create Release
     if: startsWith(github.ref, 'refs/tags/v') || inputs.release_version != ''
-    needs: [test-flags, build-amd64]
+    needs: [test-flags, test-oauth-logging, build-amd64]
     runs-on: ubuntu-latest
     permissions:
       contents: write

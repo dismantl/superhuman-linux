@@ -7,7 +7,10 @@
 setup_logging() {
 	log_dir="${XDG_CACHE_HOME:-$HOME/.cache}/superhuman"
 	mkdir -p "$log_dir" || return 1
+	chmod 700 "$log_dir" || return 1
 	log_file="$log_dir/launcher.log"
+	(umask 077; : >> "$log_file") || return 1
+	chmod 600 "$log_file" || return 1
 }
 
 # Log a message to the log file

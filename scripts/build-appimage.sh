@@ -89,7 +89,6 @@ detect_display_backend
 # Log startup info
 log_message '--- Superhuman AppImage Start ---'
 log_message "Timestamp: $(date)"
-log_message "Arguments: $@"
 log_message "APPDIR: $appdir"
 
 # Path to the bundled Electron executable and app
@@ -106,7 +105,7 @@ electron_args+=("$app_path")
 cd "$HOME" || exit 1
 
 # Execute Electron
-log_message "Executing: $electron_exec ${electron_args[*]} $*"
+log_message "Executing: $electron_exec"
 exec "$electron_exec" "${electron_args[@]}" "$@" >> "$log_file" 2>&1
 EOF
 chmod +x "$appdir_path/AppRun" || exit 1
