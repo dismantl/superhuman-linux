@@ -85,6 +85,8 @@ jobs:
           fi
           test -s "artifacts/superhuman_${version}_amd64.deb"
           test -s "artifacts/superhuman-${version}-amd64.AppImage"
+          test -s artifacts/superhuman-appimage.desktop
+          test -s artifacts/superhuman-appimage.png
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3.0.3

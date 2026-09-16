@@ -19,7 +19,7 @@ This project repackages the official Windows version of Superhuman for Debian-ba
 
 ### Using Pre-built Releases
 
-Download the latest amd64 `.deb` or `.AppImage` from the [Releases page](https://github.com/dismantl/superhuman-linux/releases).
+Once the first release is published, download the latest amd64 `.deb` or `.AppImage` from the [Releases page](https://github.com/dismantl/superhuman-linux/releases). Until then, build from source using the instructions below.
 
 ### Building from Source
 
@@ -72,7 +72,16 @@ chmod +x ./superhuman-*.AppImage
 # Or integrate with your system using Gear Lever
 ```
 
-**Note:** AppImage login requires proper desktop integration for the `superhuman://` protocol handler. Use [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever) or manually install the provided `.desktop` file to `~/.local/share/applications/`.
+**Note:** AppImage login requires desktop integration for the `superhuman://` protocol handler. [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever) can integrate the AppImage. To install it manually, download `superhuman-appimage.desktop` and `superhuman-appimage.png` from the same release (or use the files produced by a local build), then:
+
+1. Edit the desktop file's `Exec=` line, replacing `/absolute/path/to/` with the absolute path to the directory containing your AppImage.
+2. Install the desktop file and icon, then register the protocol handler:
+
+   ```bash
+   install -Dm644 superhuman-appimage.desktop ~/.local/share/applications/superhuman-appimage.desktop
+   install -Dm644 superhuman-appimage.png ~/.local/share/icons/hicolor/256x256/apps/superhuman.png
+   xdg-mime default superhuman-appimage.desktop x-scheme-handler/superhuman
+   ```
 
 ## Configuration
 

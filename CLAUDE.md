@@ -205,7 +205,7 @@ npx asar extract /tmp/.mount_superh*/usr/lib/node_modules/electron/dist/resource
 
 ```bash
 # Check current version in build.sh
-grep -oP 'Superhuman%20Setup%20\K[0-9]+\.[0-9]+\.[0-9]+' build.sh | head -1
+grep '^readonly SUPERHUMAN_VERSION=' build.sh
 
 # Fetch latest version from update channel
 curl -s https://storage.googleapis.com/download.superhuman.com/native-update/latest.yml | grep version

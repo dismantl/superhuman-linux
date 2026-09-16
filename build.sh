@@ -787,12 +787,13 @@ run_packaging() {
 
 			section_header 'Generate .desktop file for AppImage'
 			local desktop_file="./${PACKAGE_NAME}-appimage.desktop"
+			local desktop_icon="./${PACKAGE_NAME}-appimage.png"
 			echo "Generating .desktop file for AppImage at $desktop_file..."
 			cat > "$desktop_file" << EOF
 [Desktop Entry]
 Name=Superhuman (AppImage)
 Comment=Superhuman - The fastest email experience (AppImage Version $version)
-Exec=$(basename "$output_path") %u
+Exec=/absolute/path/to/$(basename "$output_path") %u
 Icon=superhuman
 Type=Application
 Terminal=false
@@ -802,6 +803,7 @@ StartupWMClass=Superhuman
 X-AppImage-Version=$version
 X-AppImage-Name=Superhuman (AppImage)
 EOF
+			cp "$work_dir/superhuman_256x256.png" "$desktop_icon" || exit 1
 			echo '.desktop file generated.'
 		else
 			echo 'Warning: Could not determine final .AppImage file path.'

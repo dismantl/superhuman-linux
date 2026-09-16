@@ -46,4 +46,6 @@ jobs:
             superhuman_*.deb
             superhuman-*.AppImage
             superhuman-*.AppImage.zsync
+            superhuman-appimage.desktop
+            superhuman-appimage.png
           if-no-files-found: error
