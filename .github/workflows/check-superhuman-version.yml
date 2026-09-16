@@ -31,39 +31,47 @@ jobs:
       - name: Install resolver dependencies
         run: python -m pip install requests==2.34.2 PyYAML==6.0.3
 
-      - name: Resolve current amd64 version
+      - name: Resolve current amd64 release
         id: latest
         shell: bash
         run: |
           set -euo pipefail
-          resolved=$(python scripts/resolve-download-url.py amd64 --format version)
-          version=${resolved#VERSION=}
-          if [[ $resolved != VERSION=* || ! $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Could not resolve a valid Superhuman version: $resolved" >&2
+          resolved=$(python scripts/resolve-download-url.py amd64 --format release)
+          version=$(sed -n 's/^VERSION=//p' <<< "$resolved")
+          sha512=$(sed -n 's/^SHA512=//p' <<< "$resolved")
+          if [[ ! $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || ! $sha512 =~ ^[a-f0-9]{128}$ ]]; then
+            echo 'Could not resolve a valid Superhuman version and checksum' >&2
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha512=$sha512" >> "$GITHUB_OUTPUT"
 
       - name: Update source and dispatch release build
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           LATEST_VERSION: ${{ steps.latest.outputs.version }}
+          LATEST_SHA512: ${{ steps.latest.outputs.sha512 }}
         run: |
           set -euo pipefail
           current_version=$(sed -nE "s/^readonly SUPERHUMAN_VERSION='([0-9]+\.[0-9]+\.[0-9]+)'$/\1/p" build.sh)
-          if [[ -z $current_version ]]; then
-            echo 'Could not read the version from build.sh' >&2
+          current_sha512=$(sed -nE "s/^readonly SUPERHUMAN_AMD64_SHA512='([a-f0-9]{128})'$/\1/p" build.sh)
+          if [[ -z $current_version || -z $current_sha512 ]]; then
+            echo 'Could not read the version and checksum from build.sh' >&2
             exit 1
           fi
 
           if [[ $LATEST_VERSION != "$current_version" ]]; then
             sed -i -E "s/^readonly SUPERHUMAN_VERSION='[0-9]+\.[0-9]+\.[0-9]+'$/readonly SUPERHUMAN_VERSION='${LATEST_VERSION}'/" build.sh
+            sed -i -E "s/^readonly SUPERHUMAN_AMD64_SHA512='[a-f0-9]{128}'$/readonly SUPERHUMAN_AMD64_SHA512='${LATEST_SHA512}'/" build.sh
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
             git add build.sh
             git commit -m "chore(release): update Superhuman to ${LATEST_VERSION}"
             git push origin HEAD:main
+          elif [[ $LATEST_SHA512 != "$current_sha512" ]]; then
+            echo "Upstream checksum changed without a version change for $LATEST_VERSION; review the installer before updating the pin." >&2
+            exit 1
           fi
 
           tag="v${LATEST_VERSION}"

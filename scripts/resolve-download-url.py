@@ -9,6 +9,8 @@ Falls back to Playwright-based resolution if the update channel is unavailable.
 """
 
 import argparse
+import base64
+import binascii
 import re
 import sys
 import urllib.parse
@@ -51,6 +53,29 @@ def fetch_latest_yml(timeout: int = 10) -> dict | None:
         return None
 
 
+def installer_sha512(latest: dict, filename: str) -> str | None:
+    """Return the hex SHA-512 for exactly one matching installer entry."""
+    files = latest.get("files")
+    if not isinstance(files, list):
+        print("Error: Update channel has no files list", file=sys.stderr)
+        return None
+
+    matches = [entry for entry in files if isinstance(entry, dict) and entry.get("url") == filename]
+    if len(matches) != 1:
+        print(f"Error: Expected one checksum entry for {filename}", file=sys.stderr)
+        return None
+
+    try:
+        digest = base64.b64decode(matches[0].get("sha512"), validate=True)
+    except (binascii.Error, TypeError, ValueError):
+        print(f"Error: Invalid SHA-512 for {filename}", file=sys.stderr)
+        return None
+    if len(digest) != 64:
+        print(f"Error: Invalid SHA-512 length for {filename}", file=sys.stderr)
+        return None
+    return digest.hex()
+
+
 def resolve_from_update_channel(arch: str) -> dict | None:
     """
     Resolve download URL and version from Superhuman's update channel.
@@ -62,12 +87,12 @@ def resolve_from_update_channel(arch: str) -> dict | None:
         Dict with 'url' and 'version' keys, or None if resolution failed.
     """
     latest = fetch_latest_yml()
-    if not latest:
+    if not isinstance(latest, dict):
         return None
 
     version = latest.get("version")
-    if not version:
-        print("Error: No version found in latest.yml", file=sys.stderr)
+    if not isinstance(version, str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
+        print("Error: No valid version found in latest.yml", file=sys.stderr)
         return None
 
     # Construct download URL based on architecture
@@ -82,7 +107,11 @@ def resolve_from_update_channel(arch: str) -> dict | None:
     encoded_filename = urllib.parse.quote(filename)
     url = f"{UPDATE_CHANNEL_BASE}/{encoded_filename}"
 
-    return {"url": url, "version": version}
+    sha512 = installer_sha512(latest, filename) if arch == "amd64" else None
+    if arch == "amd64" and sha512 is None:
+        return None
+
+    return {"url": url, "version": version, "sha512": sha512}
 
 
 def resolve_via_playwright(timeout: int = 30000) -> str | None:
@@ -215,7 +244,7 @@ def main():
     )
     parser.add_argument(
         "--format",
-        choices=["url", "version", "both"],
+        choices=["url", "version", "both", "release"],
         default="url",
         help="Output format (default: url)",
     )
@@ -226,6 +255,9 @@ def main():
     )
 
     args = parser.parse_args()
+
+    if args.format == "release" and (args.arch != "amd64" or args.use_playwright):
+        parser.error("release format requires the amd64 update channel")
 
     architectures = ["amd64", "arm64"] if args.arch == "all" else [args.arch]
 
@@ -291,6 +323,9 @@ def main():
             print(f"{prefix}URL={result['url']}")
             if result["version"]:
                 print(f"{prefix}VERSION={result['version']}")
+        elif args.format == "release":
+            print(f"VERSION={result['version']}")
+            print(f"SHA512={result['sha512']}")
 
     # Exit with error if any resolution failed
     if any(r is None for r in results.values()):

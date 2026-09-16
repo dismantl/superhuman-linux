@@ -206,10 +206,15 @@ npx asar extract /tmp/.mount_superh*/usr/lib/node_modules/electron/dist/resource
 ```bash
 # Check current version in build.sh
 grep '^readonly SUPERHUMAN_VERSION=' build.sh
+grep '^readonly SUPERHUMAN_AMD64_SHA512=' build.sh
 
 # Fetch latest version from update channel
 curl -s https://storage.googleapis.com/download.superhuman.com/native-update/latest.yml | grep version
 
 # Run URL resolver
-python scripts/resolve-download-url.py all --format both
+# On Debian/Ubuntu, first install python3-requests and python3-yaml
+/usr/bin/python3 scripts/resolve-download-url.py all --format both
+
+# Get the version and checksum together for an amd64 release
+/usr/bin/python3 scripts/resolve-download-url.py amd64 --format release
 ```

@@ -50,6 +50,8 @@ cd superhuman-linux
 ./build.sh --exe /path/to/Superhuman.exe
 ```
 
+The default amd64 build checks the downloaded installer against the SHA-512 pinned with its version before extracting it. `--exe` uses the local file you provide and skips that upstream checksum check.
+
 #### Installing the Built Package
 
 **For .deb packages:**
@@ -165,7 +167,7 @@ For enhanced security, consider:
 
 Superhuman is an Electron application distributed for Windows and macOS. This project:
 
-1. Downloads the official Windows installer
+1. Downloads the official Windows installer and verifies its pinned SHA-512 checksum
 2. Extracts the NSIS installer to get the embedded 7z archive
 3. Extracts the Electron app from the 7z archive
 4. Injects a frame-fix wrapper to force native window frames on Linux
@@ -198,7 +200,14 @@ If you need to build with a specific version before the automation catches it:
    ./build.sh --exe /path/to/Superhuman.exe
    ```
 
-2. **Update the pinned version**: Modify `SUPERHUMAN_VERSION` in `build.sh`.
+2. **Update the pinned version and checksum**: On Debian or Ubuntu, install the resolver's Python dependencies and run it with the system Python:
+
+   ```bash
+   sudo apt install python3-requests python3-yaml
+   /usr/bin/python3 scripts/resolve-download-url.py amd64 --format release
+   ```
+
+   Update both `SUPERHUMAN_VERSION` and `SUPERHUMAN_AMD64_SHA512` in `build.sh` from its output.
 
 ## License
 

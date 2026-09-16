@@ -31,6 +31,7 @@ readonly PACKAGE_NAME='superhuman'
 readonly MAINTAINER='Superhuman Linux Maintainers'
 readonly DESCRIPTION='Superhuman - The fastest email experience ever made'
 readonly SUPERHUMAN_VERSION='1041.0.59'
+readonly SUPERHUMAN_AMD64_SHA512='52810f02b5f39b585c7d71679463d2b4b21b867c634313f938206c0dd65464e606c13bd27974f0142578a21616ba0abf7354a23bb14708194c966a9f112170c7'
 readonly ELECTRON_VERSION='44.4.1'
 readonly ASAR_VERSION='4.3.0'
 
@@ -422,9 +423,28 @@ download_superhuman_installer() {
 		cp "$local_exe_path" "$superhuman_exe_path" || exit 1
 		echo 'Local installer copied to build directory'
 	else
+		if [[ $architecture != 'amd64' ]]; then
+			echo "No pinned checksum for the $architecture installer; use --exe with a local installer." >&2
+			exit 1
+		fi
+		if [[ ! $SUPERHUMAN_AMD64_SHA512 =~ ^[a-f0-9]{128}$ ]]; then
+			echo 'The pinned amd64 installer checksum is invalid.' >&2
+			exit 1
+		fi
 		echo "Downloading Superhuman installer for $architecture..."
 		if ! wget -O "$superhuman_exe_path" "$superhuman_download_url"; then
 			echo "Failed to download Superhuman installer from $superhuman_download_url" >&2
+			exit 1
+		fi
+		local downloaded_sha512
+		if ! downloaded_sha512=$(sha512sum < "$superhuman_exe_path"); then
+			echo 'Failed to hash the downloaded Superhuman installer.' >&2
+			exit 1
+		fi
+		downloaded_sha512=${downloaded_sha512%% *}
+		if [[ $downloaded_sha512 != "$SUPERHUMAN_AMD64_SHA512" ]]; then
+			echo 'Downloaded Superhuman installer checksum does not match the pinned release.' >&2
+			rm -f "$superhuman_exe_path"
 			exit 1
 		fi
 		echo "Download complete: $superhuman_exe_filename"
