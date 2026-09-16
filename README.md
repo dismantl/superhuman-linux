@@ -200,7 +200,14 @@ If you need to build with a specific version before the automation catches it:
    ./build.sh --exe /path/to/Superhuman.exe
    ```
 
-2. **Update the pinned version and checksum**: Run `python3 scripts/resolve-download-url.py amd64 --format release`, then update both `SUPERHUMAN_VERSION` and `SUPERHUMAN_AMD64_SHA512` in `build.sh` from its output.
+2. **Update the pinned version and checksum**: On Debian or Ubuntu, install the resolver's Python dependencies and run it with the system Python:
+
+   ```bash
+   sudo apt install python3-requests python3-yaml
+   /usr/bin/python3 scripts/resolve-download-url.py amd64 --format release
+   ```
+
+   Update both `SUPERHUMAN_VERSION` and `SUPERHUMAN_AMD64_SHA512` in `build.sh` from its output.
 
 ## License
 
