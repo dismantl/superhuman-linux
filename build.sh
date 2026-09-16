@@ -30,6 +30,9 @@ final_output_path=''
 readonly PACKAGE_NAME='superhuman'
 readonly MAINTAINER='Superhuman Linux Maintainers'
 readonly DESCRIPTION='Superhuman - The fastest email experience ever made'
+readonly SUPERHUMAN_VERSION='1041.0.59'
+readonly ELECTRON_VERSION='44.4.1'
+readonly ASAR_VERSION='4.3.0'
 
 #===============================================================================
 # Utility Functions
@@ -69,20 +72,19 @@ detect_architecture() {
 	echo "Detected host architecture: $host_arch"
 	cat /etc/os-release && uname -m && dpkg --print-architecture
 
-	# Superhuman download URL - fetched from their update channel
-	# The version check workflow updates these URLs when new versions are released
+	# The scheduled workflow updates this version from Superhuman's update channel.
 	local base_url='https://storage.googleapis.com/download.superhuman.com/native-update'
 
 	case "$host_arch" in
 		amd64)
-			superhuman_download_url="${base_url}/Superhuman%20Setup%201038.0.17-latest.exe"
+			superhuman_download_url="${base_url}/Superhuman%20Setup%20${SUPERHUMAN_VERSION}-latest.exe"
 			architecture='amd64'
 			superhuman_exe_filename='Superhuman-Setup-x64.exe'
 			echo 'Configured for amd64 build.'
 			;;
 		arm64)
 			# Superhuman provides arm64 builds as well
-			superhuman_download_url="${base_url}/Superhuman%20Setup%201038.0.17-latest-arm64.exe"
+			superhuman_download_url="${base_url}/Superhuman%20Setup%20${SUPERHUMAN_VERSION}-latest-arm64.exe"
 			architecture='arm64'
 			superhuman_exe_filename='Superhuman-Setup-arm64.exe'
 			echo 'Configured for arm64 build.'
@@ -120,7 +122,7 @@ check_system_requirements() {
 
 	# Check for NVM and source it if found
 	if [[ -d $original_home/.nvm ]]; then
-		echo "Found NVM installation for user $original_user, checking for Node.js 20+..."
+		echo "Found NVM installation for user $original_user, checking for Node.js 22.12+..."
 		export NVM_DIR="$original_home/.nvm"
 		if [[ -s $NVM_DIR/nvm.sh ]]; then
 			# shellcheck disable=SC1091
@@ -264,16 +266,18 @@ setup_nodejs() {
 
 	local node_version_ok=false
 	if command -v node &> /dev/null; then
-		local node_version node_major
+		local node_version node_major node_minor
 		node_version=$(node --version | cut -d'v' -f2)
 		node_major="${node_version%%.*}"
+		node_minor="${node_version#*.}"
+		node_minor="${node_minor%%.*}"
 		echo "System Node.js version: v$node_version"
 
-		if (( node_major >= 20 )); then
+		if (( node_major > 22 || (node_major == 22 && node_minor >= 12) )); then
 			echo "System Node.js version is adequate (v$node_version)"
 			node_version_ok=true
 		else
-			echo "System Node.js version is too old (v$node_version). Need v20+"
+			echo "System Node.js version is too old (v$node_version). Need v22.12+"
 		fi
 	else
 		echo 'Node.js not found in system'
@@ -285,7 +289,7 @@ setup_nodejs() {
 	fi
 
 	# Node.js version inadequate - install locally
-	echo 'Installing Node.js v20 locally in build directory...'
+	echo 'Installing a current Node.js LTS version locally in build directory...'
 
 	local node_arch
 	case "$architecture" in
@@ -297,7 +301,7 @@ setup_nodejs() {
 			;;
 	esac
 
-	local node_version_to_install='20.18.1'
+	local node_version_to_install='24.21.0'
 	local node_tarball="node-v${node_version_to_install}-linux-${node_arch}.tar.xz"
 	local node_url="https://nodejs.org/dist/v${node_version_to_install}/${node_tarball}"
 	local node_install_dir="$work_dir/node"
@@ -353,8 +357,14 @@ setup_electron_asar() {
 
 	if [[ $install_needed == true ]]; then
 		echo "Installing Electron and Asar locally into $work_dir..."
-		if ! npm install --no-save electron @electron/asar; then
+		if ! npm install --no-save "electron@${ELECTRON_VERSION}" "@electron/asar@${ASAR_VERSION}"; then
 			echo 'Failed to install Electron and/or Asar locally.' >&2
+			cd "$project_root" || exit 1
+			exit 1
+		fi
+		# Electron's npm package ships the installer but does not run it during npm install.
+		if ! node "$work_dir/node_modules/electron/install.js"; then
+			echo 'Failed to download the Electron runtime.' >&2
 			cd "$project_root" || exit 1
 			exit 1
 		fi
@@ -435,6 +445,7 @@ download_superhuman_installer() {
 
 	# Superhuman uses NSIS with embedded 7z archives in $PLUGINSDIR
 	local app_7z_path=''
+	# shellcheck disable=SC2016 # $PLUGINSDIR is a literal directory name in the NSIS archive.
 	case "$architecture" in
 		amd64) app_7z_path='$PLUGINSDIR/app-64.7z' ;;
 		arm64) app_7z_path='$PLUGINSDIR/app-arm64.7z' ;;
@@ -634,24 +645,8 @@ process_icons() {
 
 	if [[ -f $app_png ]]; then
 		echo "Found app icon in assets: $app_png"
-		# Generate various sizes from the source PNG using ImageMagick
-		local sizes=(16 24 32 48 64 128 256)
-		for size in "${sizes[@]}"; do
-			local output_file="$work_dir/superhuman_${size}x${size}.png"
-			if convert "$app_png" -resize "${size}x${size}" "$output_file" 2>/dev/null; then
-				echo "Generated ${size}x${size} icon"
-			fi
-		done
-		# Also create the specific naming pattern expected by packaging scripts
-		# Pattern: superhuman_N_WxHx32.png where N is an index
-		convert "$app_png" -resize "256x256" "$work_dir/superhuman_6_256x256x32.png" 2>/dev/null || true
-		convert "$app_png" -resize "64x64" "$work_dir/superhuman_7_64x64x32.png" 2>/dev/null || true
-		convert "$app_png" -resize "48x48" "$work_dir/superhuman_8_48x48x32.png" 2>/dev/null || true
-		convert "$app_png" -resize "32x32" "$work_dir/superhuman_10_32x32x32.png" 2>/dev/null || true
-		convert "$app_png" -resize "24x24" "$work_dir/superhuman_11_24x24x32.png" 2>/dev/null || true
-		convert "$app_png" -resize "16x16" "$work_dir/superhuman_13_16x16x32.png" 2>/dev/null || true
+		cp "$app_png" "$work_dir/superhuman-source.png" || exit 1
 		icons_found=true
-		echo "Icons generated from app.png"
 	elif [[ -f $app_ico ]]; then
 		echo "Found app icon in assets: $app_ico"
 		# Extract icons from .ico file
@@ -688,9 +683,32 @@ process_icons() {
 		fi
 	fi
 
-	if [[ $icons_found != true ]]; then
-		echo 'Warning: No icons found. AppImage may be missing an icon.'
+	# icotool indices vary between installer versions; choose the largest image.
+	local icon_source='' largest_area=0 icon dimensions width height area
+	if [[ -f $work_dir/superhuman-source.png ]]; then
+		icon_source="$work_dir/superhuman-source.png"
+	else
+		while IFS= read -r -d '' icon; do
+			dimensions=$(identify -format '%w %h' "$icon" 2>/dev/null) || continue
+			read -r width height <<< "$dimensions"
+			area=$((width * height))
+			if (( area > largest_area )); then
+				largest_area=$area
+				icon_source=$icon
+			fi
+		done < <(find "$work_dir" -maxdepth 1 -type f -name 'superhuman_*.png' -print0)
 	fi
+
+	if [[ -z $icon_source ]]; then
+		echo 'Could not extract a usable application icon' >&2
+		exit 1
+	fi
+
+	local sizes=(16 24 32 48 64 128 256)
+	for size in "${sizes[@]}"; do
+		convert "$icon_source" -resize "${size}x${size}" "$work_dir/superhuman_${size}x${size}.png" || exit 1
+	done
+	echo "Generated icon sizes from $icon_source"
 
 	cd "$project_root" || exit 1
 
@@ -769,12 +787,13 @@ run_packaging() {
 
 			section_header 'Generate .desktop file for AppImage'
 			local desktop_file="./${PACKAGE_NAME}-appimage.desktop"
+			local desktop_icon="./${PACKAGE_NAME}-appimage.png"
 			echo "Generating .desktop file for AppImage at $desktop_file..."
 			cat > "$desktop_file" << EOF
 [Desktop Entry]
 Name=Superhuman (AppImage)
 Comment=Superhuman - The fastest email experience (AppImage Version $version)
-Exec=$(basename "$output_path") %u
+Exec=/absolute/path/to/$(basename "$output_path") %u
 Icon=superhuman
 Type=Application
 Terminal=false
@@ -784,6 +803,7 @@ StartupWMClass=Superhuman
 X-AppImage-Version=$version
 X-AppImage-Name=Superhuman (AppImage)
 EOF
+			cp "$work_dir/superhuman_256x256.png" "$desktop_icon" || exit 1
 			echo '.desktop file generated.'
 		else
 			echo 'Warning: Could not determine final .AppImage file path.'

@@ -17,6 +17,11 @@ echo "App Staging Directory: $app_staging_dir"
 echo "Package Name: $package_name"
 
 component_id='io.github.aaddrick.superhuman-linux'
+case "$architecture" in
+	amd64) appimage_arch='x86_64' ;;
+	arm64) appimage_arch='aarch64' ;;
+	*) echo "Unsupported AppImage architecture: $architecture" >&2; exit 1 ;;
+esac
 # Define AppDir structure path
 appdir_path="$work_dir/${component_id}.AppDir"
 rm -rf "$appdir_path"
@@ -132,7 +137,7 @@ echo 'Bundled desktop entry created and copied to usr/share/applications/'
 # --- Copy Icons ---
 echo 'Copying icons...'
 # Use the 256x256 icon as the main AppImage icon
-icon_source_path="$work_dir/superhuman_6_256x256x32.png"
+icon_source_path="$work_dir/superhuman_256x256.png"
 if [[ -f $icon_source_path ]]; then
 	# Standard location within AppDir
 	cp "$icon_source_path" "$appdir_path/usr/share/icons/hicolor/256x256/apps/${component_id}.png" || exit 1
@@ -231,17 +236,8 @@ done
 # Download if not found
 if [[ -z $appimagetool_path ]]; then
 	echo 'Downloading appimagetool...'
-	case "$architecture" in
-		amd64) tool_arch='x86_64' ;;
-		arm64) tool_arch='aarch64' ;;
-		*)
-			echo "Unsupported architecture for appimagetool download: $architecture" >&2
-			exit 1
-			;;
-	esac
-
-	appimagetool_url="https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${tool_arch}.AppImage"
-	appimagetool_path="$work_dir/appimagetool-${tool_arch}.AppImage"
+	appimagetool_url="https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${appimage_arch}.AppImage"
+	appimagetool_path="$work_dir/appimagetool-${appimage_arch}.AppImage"
 
 	if wget -q -O "$appimagetool_path" "$appimagetool_url"; then
 		chmod +x "$appimagetool_path" || exit 1
@@ -257,7 +253,7 @@ fi
 echo 'Building AppImage...'
 output_filename="${package_name}-${version}-${architecture}.AppImage"
 output_path="$work_dir/$output_filename"
-export ARCH="$architecture"
+export ARCH="$appimage_arch"
 echo "Using ARCH=$ARCH"
 
 # Local build - no update information
@@ -292,7 +288,13 @@ if ! command -v zsyncmake &> /dev/null; then
 fi
 
 # Format: gh-releases-zsync|<username>|<repository>|<tag>|<filename-pattern>
-update_info="gh-releases-zsync|aaddrick|superhuman-linux|latest|superhuman-*-${architecture}.AppImage.zsync"
+if [[ -z ${GITHUB_REPOSITORY:-} || $GITHUB_REPOSITORY != */* ]]; then
+	echo 'GITHUB_REPOSITORY is required for release update metadata' >&2
+	exit 1
+fi
+repo_owner="${GITHUB_REPOSITORY%%/*}"
+repo_name="${GITHUB_REPOSITORY#*/}"
+update_info="gh-releases-zsync|${repo_owner}|${repo_name}|latest|superhuman-*-${architecture}.AppImage.zsync"
 echo "Update info: $update_info"
 
 if ! "$appimagetool_path" --updateinformation "$update_info" "$appdir_path" "$output_path"; then
